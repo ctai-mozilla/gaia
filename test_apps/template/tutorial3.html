@@ -1,0 +1,436 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"><head>
+  <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+  <title>Learning WebCL, lesson 3</title>
+  <meta name="keywords" content="webcl, webgl, gpu, opencl, opengl">
+  <meta name="description" content="WebCL extension for Firefox, providing direct GPU access from JavaScript">
+  <link href="Learning%20WebCL,%20lesson%203_files/default.css" rel="stylesheet" type="text/css">
+</head>
+
+<body id="tutorial">
+
+<div id="header">
+  <div id="logo">
+    <h1><a href="http://webcl.nokiaresearch.com/index.html">WebCL</a></h1>
+  </div>  <!-- end div#logo -->
+  <div id="menu">
+    <ul>
+      <li><a href="http://webcl.nokiaresearch.com/index.html" id="nav-home">Home</a></li>
+      <li><a href="http://webcl.nokiaresearch.com/demos.html" id="nav-demos">Demos</a></li>
+      <li><a href="http://webcl.nokiaresearch.com/tutorials/tutorials.html" id="nav-tutorial">Tutorial</a></li>
+      <li><a href="http://webcl.nokiaresearch.com/docs/" target="_blank">Docs</a></li>
+      <li><a href="http://github.com/toaarnio/webcl-firefox" target="_blank">Code</a></li>
+    </ul>
+  </div> <!-- end div#menu -->
+</div> <!-- end div#header -->
+
+<div id="page">
+  <div id="page-bgtop">
+    <div id="content">
+
+      <div class="post box">
+            <div>
+              <span style="float:left;"><a href="./tutorial2.html">&lt;&lt; Lesson 2</a></span>
+              <span style="float:right;"><a href="./tutorial4.html">Lesson 4 &gt;&gt;</a></span>
+              <br> <br>
+            </div>
+            <h2 class="title">Lesson 3: Kernel Compilation</h2>
+            <div class="entry">
+            <p>
+              This lesson shows how to compile, link, and run a simple OpenCL 
+              kernel that computes the sum of two vectors on OpenCL device like
+              CPU or GPU.
+            </p>
+            <p>
+            Let us start with kernel description using OpenCL C 
+language. The idea is to add two uiVectorWidth-element vectors in global
+ memory, vectorIn1 and vectorIn2, and store the result to the vector 
+vectorOut. The kernel code is shown below.
+            </p>
+		  
+            <pre>&lt;script id="clProgramVectorAdd" type="text/x-opencl"&gt;
+  __kernel void ckVectorAdd(__global unsigned int* vectorIn1, 
+                            __global unsigned int* vectorIn2,
+                            __global unsigned int* vectorOut,
+                            unsigned int uiVectorWidth) {
+     unsigned int x = get_global_id(0);
+     if (x &gt;= (uiVectorWidth))
+     {
+       return;
+    }
+    // add the vector elements
+    vectorOut[x] = vectorIn1[x] + vectorIn2[x];
+  }
+&lt;/script&gt;          
+            </pre>
+          
+            <script src="Learning%20WebCL,%20lesson%203_files/ga.js" async="" type="text/javascript"></script><script id="clProgramVectorAdd" type="text/x-opencl">
+              __kernel void ckVectorAdd(__global unsigned int* vectorIn1, __global unsigned int* vectorIn2,
+                                        __global unsigned int* vectorOut, unsigned int uiVectorWidth)
+              {
+                 unsigned int x = get_global_id(0);
+                 if (x >= (uiVectorWidth))
+                 {
+                   return;
+                }
+                // add the vector elements
+                vectorOut[x] = vectorIn1[x] + vectorIn2[x];
+              }
+            </script>
+
+            <p>
+              A work item is an instance of the kernel and several work 
+items can be executed in parallel. The function call "get_global_id(0)" 
+returns the identifier of the processed work item. In order to avoid 
+computation and problems with out of bound values the identifier is 
+checked for too large values. The actual addition is straightforward. 
+            </p>
+
+            <p>
+              OpenCL kernel needs to be passed to OpenCL device and 
+therefore, we need a JavaScript utility function for finding and loading
+ the kernel according to given id. The function shown below returns the 
+kernel source code. 
+            </p>
+            
+            <pre>function loadKernel(id){
+  var kernelElement = document.getElementById(id);
+  var kernelSource = kernelElement.text;
+  if (kernelElement.src != "") {
+      var mHttpReq = new XMLHttpRequest();
+      mHttpReq.open("GET", kernelElement.src, false);
+      mHttpReq.send(null);
+      kernelSource = mHttpReq.responseText;
+  } 
+  return kernelSource;
+}
+            </pre>
+            
+            <script type="text/javascript">
+              function loadKernel(id){
+                var kernelElement = document.getElementById(id);
+                var kernelSource = kernelElement.text;
+                if (kernelElement.src != "") {
+                    var mHttpReq = new XMLHttpRequest();
+                    mHttpReq.open("GET", kernelElement.src, false);
+                    mHttpReq.send(null);
+                    kernelSource = mHttpReq.responseText;
+                } 
+                return kernelSource;
+              }
+            </script>
+            
+            <p>
+              The function CL_vectorAdd represents an OpenCL host 
+program. Before proceeding with actual host program let us first check 
+that WebCL is installed and generate two 30-element TypedArrays to act 
+as inputs for vector addition. The source code is shown below.
+            </p> 
+
+            <pre>function CL_vectorAdd () {
+
+  // All output is written to element by id "output"
+  var output = document.getElementById("output");
+  output.innerHTML = "";
+
+  try {
+  
+    // First check if the WebCL extension is installed at all 
+    if (window.WebCL == undefined) {
+      alert("Unfortunately your system does not support WebCL. " +
+            "Make sure that you have both the OpenCL driver " +
+            "and the WebCL browser extension installed.");
+      return false;
+    }
+
+    // Generate input vectors
+    var vectorLength = 30;
+    var UIvector1 = new Uint32Array(vectorLength);    
+    var UIvector2 = new Uint32Array(vectorLength);
+    for ( var i=0; i&lt;vectorLength;  i=i+1) {
+      UIvector1[i] = Math.floor(Math.random() * 100); //Random number 0..99
+      UIvector2[i] = Math.floor(Math.random() * 100); //Random number 0..99
+    }
+    
+    output.innerHTML += "&lt;br&gt;Vector length = " + vectorLength;
+            </pre>
+            
+            <p>
+              Hosting OpenCL computation starts with reserving the 
+required resources. WebCL context is created using the default device of
+ the first available platform. In addition, we will need three buffers; 
+two read_only buffers for the inputs and one write only buffer for the 
+output. The size for the buffers is given as bytes.
+            </p> 
+            
+            <pre>    // Setup WebCL context using the default device of the first platform 
+    var platforms = WebCL.getPlatformIDs();
+    var ctx = WebCL.createContextFromType ([WebCL.CL_CONTEXT_PLATFORM, 
+                                            platforms[0]],
+                                           WebCL.CL_DEVICE_TYPE_DEFAULT);
+                     
+    // Reserve buffers
+    var bufSize = vectorLength * 4; // size in bytes
+    output.innerHTML += "&lt;br&gt;Buffer size: " + bufSize + " bytes";
+    var bufIn1 = ctx.createBuffer (WebCL.CL_MEM_READ_ONLY, bufSize);
+    var bufIn2 = ctx.createBuffer (WebCL.CL_MEM_READ_ONLY, bufSize);
+    var bufOut = ctx.createBuffer (WebCL.CL_MEM_WRITE_ONLY, bufSize);
+            </pre>
+
+            <p>
+              Next we will create a program object. The kernel code is 
+loaded with the loadKernel function and built for the defined device. 
+Possible failure with compilation is printed out as an alert box. Then, 
+the kernel code "ckVectorAdd" is selected for the kernel object. Let us 
+remark that there could be several kernel descriptions in kernel source 
+code. At this point, we can also initialize the kernel arguments.
+            </p>
+                    
+            <pre>    // Create and build program for the first device
+    var kernelSrc = loadKernel("clProgramVectorAdd");
+    var program = ctx.createProgramWithSource(kernelSrc);
+    var devices = ctx.getContextInfo(WebCL.CL_CONTEXT_DEVICES);
+
+    try {
+      program.buildProgram ([devices[0]], "");
+    } catch(e) {
+      alert ("Failed to build WebCL program. Error "
+             + program.getProgramBuildInfo (devices[0], 
+                                            WebCL.CL_PROGRAM_BUILD_STATUS)
+             + ":  " 
+             + program.getProgramBuildInfo (devices[0], 
+                                            WebCL.CL_PROGRAM_BUILD_LOG));
+      throw e;
+    }
+
+    // Create kernel and set arguments
+    var kernel = program.createKernel ("ckVectorAdd");
+    kernel.setKernelArg (0, bufIn1);
+    kernel.setKernelArg (1, bufIn2);    
+    kernel.setKernelArg (2, bufOut);
+    kernel.setKernelArg (3, vectorLength, WebCL.types.UINT);
+            </pre>
+
+
+            <p>
+              Next thing to do is to create Command queue. After that, 
+local and global work sizes are defined. Let us note that the global 
+work size must be multiple of local work size. The actual execution is 
+enqueued with enqueueNDRangeKernel. After the execution, the results can
+ be read from the OpenCL device with enqueueReadBuffer. Finally, the 
+commmand queue is flushed with cmdQueue.finish.
+            </p>
+          
+          
+            <pre>    // Create command queue using the first available device
+    var cmdQueue = ctx.createCommandQueue (devices[0], 0);
+    
+    // Write the buffer to OpenCL device memory
+    cmdQueue.enqueueWriteBuffer (bufIn1, false, 0, bufSize, UIvector1, []);
+    cmdQueue.enqueueWriteBuffer (bufIn2, false, 0, bufSize, UIvector2, []);
+ 
+    // Init ND-range
+    var localWS = [8];
+    var globalWS = [Math.ceil (vectorLength / localWS) * localWS];
+
+    output.innerHTML += "&lt;br&gt;Global work item size: " + globalWS;
+    output.innerHTML += "&lt;br&gt;Local work item size: " + localWS;
+    
+    // Execute (enqueue) kernel
+    cmdQueue.enqueueNDRangeKernel(kernel, globalWS.length, [], 
+                                  globalWS, localWS, []);
+
+    // Read the result buffer from OpenCL device
+    outBuffer = new Uint32Array(vectorLength);
+    cmdQueue.enqueueReadBuffer (bufOut, false, 0, bufSize, outBuffer, []);    
+    cmdQueue.finish (); //Finish all the operations
+
+    //Print input vectors and result vector
+    output.innerHTML += "&lt;br&gt;Vector1 = "; 
+    for (var i = 0; i &lt; vectorLength; i = i + 1) {
+      output.innerHTML += UIvector1[i] + ", ";
+    }
+    output.innerHTML += "&lt;br&gt;Vector2 = ";
+    for (var i = 0; i &lt; vectorLength; i = i + 1) {
+      output.innerHTML += UIvector2[i] + ", ";
+    }
+    output.innerHTML += "&lt;br&gt;Result = ";
+    for (var i = 0; i &lt; vectorLength; i = i + 1) {
+      output.innerHTML += outBuffer[i] + ", ";
+    }
+
+  } catch(e) {
+    document.getElementById("output").innerHTML 
+      += "&lt;h3&gt;ERROR:&lt;/h3&gt;&lt;pre style=\"color:red;\"&gt;" + e.message + "&lt;/pre&gt;";
+    throw e;
+  }
+}
+            </pre>
+
+            <script type="text/javascript">         
+              function CL_vectorAdd () {
+              
+                // All output is written to element by id "output"
+                var output = document.getElementById("output");
+                output.innerHTML = "";
+              
+                try {
+                
+                  // First check if the WebCL extension is installed at all 
+                  if (window.WebCL == undefined) {
+                    alert("Unfortunately your system does not support WebCL. " +
+                          "Make sure that you have both the OpenCL driver " +
+                          "and the WebCL browser extension installed.");
+                    return false;
+                  }
+        
+                  // Generate input vectors
+                  var vectorLength = 30;
+                  var UIvector1 = new Uint32Array(vectorLength);    
+                  var UIvector2 = new Uint32Array(vectorLength);
+                  for ( var i=0; i<vectorLength;  i=i+1) {
+                    UIvector1[i] = Math.floor(Math.random() * 100); //Random number 0..99
+                    UIvector2[i] = Math.floor(Math.random() * 100); //Random number 0..99
+                  }
+                  
+                  output.innerHTML += "<br>Vector length = " + vectorLength;
+
+                  // Setup WebCL context using the default device of the first available platform 
+                  var platforms = WebCL.getPlatformIDs();
+                  var ctx = WebCL.createContextFromType ([WebCL.CL_CONTEXT_PLATFORM, platforms[0]],
+                                                           WebCL.CL_DEVICE_TYPE_DEFAULT);
+                                   
+                  // Reserve buffers
+                  var bufSize = vectorLength * 4; // size in bytes
+                  output.innerHTML += "<br>Buffer size: " + bufSize + " bytes";
+                  var bufIn1 = ctx.createBuffer (WebCL.CL_MEM_READ_ONLY, bufSize);
+                  var bufIn2 = ctx.createBuffer (WebCL.CL_MEM_READ_ONLY, bufSize);
+                  var bufOut = ctx.createBuffer (WebCL.CL_MEM_WRITE_ONLY, bufSize);
+
+                  // Create and build program for the first device
+                  var kernelSrc = loadKernel("clProgramVectorAdd");
+                  var program = ctx.createProgramWithSource(kernelSrc);
+                  var devices = ctx.getContextInfo(WebCL.CL_CONTEXT_DEVICES);
+
+                  try {
+                    program.buildProgram ([devices[0]], "");
+                  } catch(e) {
+                    alert ("Failed to build WebCL program. Error "
+                           + program.getProgramBuildInfo (devices[0], WebCL.CL_PROGRAM_BUILD_STATUS)
+                           + ":  " + program.getProgramBuildInfo (devices[0], WebCL.CL_PROGRAM_BUILD_LOG));
+                    throw e;
+                  }
+
+                  // Create kernel and set arguments
+                  var kernel = program.createKernel ("ckVectorAdd");
+                  kernel.setKernelArg (0, bufIn1);
+                  kernel.setKernelArg (1, bufIn2);    
+                  kernel.setKernelArg (2, bufOut);
+                  kernel.setKernelArg (3, vectorLength, WebCL.types.UINT);
+
+                  // Create command queue using the first available device
+                  var cmdQueue = ctx.createCommandQueue (devices[0], 0);
+                  
+                  // Write the buffer to OpenCL device memory
+                  cmdQueue.enqueueWriteBuffer (bufIn1, false, 0, bufSize, UIvector1, []);
+                  cmdQueue.enqueueWriteBuffer (bufIn2, false, 0, bufSize, UIvector2, []);
+               
+                  // Init ND-range
+                  var localWS = [8];
+                  var globalWS = [Math.ceil (vectorLength / localWS) * localWS];
+
+                  output.innerHTML += "<br>Global work item size: " + globalWS;
+                  output.innerHTML += "<br>Local work item size: " + localWS;
+                  
+                  // Execute (enqueue) kernel
+                  cmdQueue.enqueueNDRangeKernel(kernel, globalWS.length, [], globalWS, localWS, []);
+
+                  // Read the result buffer from OpenCL device
+                  outBuffer = new Uint32Array(vectorLength);
+                  cmdQueue.enqueueReadBuffer (bufOut, false, 0, bufSize, outBuffer, []);    
+                  cmdQueue.finish (); //Finish all the operations
+
+                  //Print input vectors and result vector
+                  output.innerHTML += "<br>Vector1 = "; 
+                  for (var i = 0; i < vectorLength; i = i + 1) {
+                    output.innerHTML += UIvector1[i] + ", ";
+                  }
+                  output.innerHTML += "<br>Vector2 = ";
+                  for (var i = 0; i < vectorLength; i = i + 1) {
+                    output.innerHTML += UIvector2[i] + ", ";
+                  }
+                  output.innerHTML += "<br>Result = ";
+                  for (var i = 0; i < vectorLength; i = i + 1) {
+                    output.innerHTML += outBuffer[i] + ", ";
+                  }
+
+                } catch(e) {
+                  document.getElementById("output").innerHTML += "<h3>ERROR:</h3><pre style=\"color:red;\">" + e.message + "</pre>";
+                  throw e;
+                }
+              }
+            </script>        
+          
+        
+            <div><input value="Run Lesson 3" onclick="CL_vectorAdd()" type="button"></div>
+
+            <div id="output"></div>
+        
+        
+            <div>
+              <br> <br>
+              <span style="float:left;"><a href="./tutorial2.html">&lt;&lt; Lesson 2</a></span>
+              <span style="float:right;"><a href="./tutorial4.html">Lesson 4 &gt;&gt;</a></span>
+              <br>
+            </div>
+			 
+          </div>
+    </div>
+
+  </div>
+    <!-- end div#content -->
+
+    <div id="sidebar">
+
+      <div class="box">
+        <ul>
+          <li>
+            <h2>Tutorial</h2>
+            <ul>
+              <li><a href="http://webcl.nokiaresearch.com/tutorials/tutorials.html">Introduction</a></li>
+              <li><a href="http://webcl.nokiaresearch.com/tutorials/tutorial1.html">Lesson 1</a></li>
+              <li><a href="http://webcl.nokiaresearch.com/tutorials/tutorial2.html">Lesson 2</a></li>
+              <li><a href="http://webcl.nokiaresearch.com/tutorials/tutorial3.html">Lesson 3</a></li>
+              <li><a href="http://webcl.nokiaresearch.com/tutorials/tutorial4.html">Lesson 4</a></li>
+            </ul>
+          </li>
+        </ul>
+      </div>
+
+    </div>
+    <!-- end div#sidebar -->
+    <div style="clear: both; height: 1px"></div>
+  </div>
+</div> <!-- end div#page -->
+
+<div id="footer-wrapper">
+  <div id="footer">
+    <p id="legal">Copyright © 2011 NRC Tampere. All Rights Reserved. Web design based on <a href="http://www.freecsstemplates.org/">Free CSS Templates</a>.</p>
+  </div>
+</div> <!-- end div#footer-wrapper -->
+
+
+
+<script type="text/javascript">
+  var _gaq = _gaq || [];
+  _gaq.push(['_setAccount', 'UA-22607782-1']);
+  _gaq.push(['_trackPageview']);
+  (function() {
+    var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+    ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+    var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+  })();
+</script>
+
+
+</body></html>

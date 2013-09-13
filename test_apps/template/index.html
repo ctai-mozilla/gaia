@@ -21,8 +21,27 @@
 
   <body>
 
-    <p>Implement me</p>
-    <a href = "http://webcl.nokiaresearch.com/tutorials/tutorial3.html">Nokia lesson3</a>
+    <p>This is a demo for WebCL on FX OS:</p>
+    <a href = "http://webcl.nokiaresearch.com/tutorials/tutorial2.html">Website link for Nokia lesson2</a>
+    <br>
+    <a href = "./tutorial2.html">Nokia lesson2</a>
+    <br>
+    <a href = "./tutorial3.html">Nokia lesson3</a>
+    <br>
+    <a href = "./tutorial4.html">Nokia lesson4</a>
+    <script type="text/javascript">         
+      function test () {
+        console.log("@@ in |test|.");
+	      if (window.WebCL == undefined) {
+      		alert("Unfortunately your system does not support WebCL. " +
+	      	      "Make sure that you have both the OpenCL driver " +
+	      	      "and the WebCL browser extension installed.");
+       		return false;
+	      }
+        console.log("@@ 1.");
+      }
+    </script>
+    <div><input value="Run test code" onclick="test()" type="button"></div>
   </body>
 
 </html>
