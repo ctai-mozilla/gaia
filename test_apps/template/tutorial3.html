@@ -297,8 +297,10 @@ commmand queue is flushed with cmdQueue.finish.
 
                   // Setup WebCL context using the default device of the first available platform 
                   var platforms = WebCL.getPlatformIDs();
-                  var ctx = WebCL.createContextFromType ([WebCL.CL_CONTEXT_PLATFORM, platforms[0]],
-                                                           WebCL.CL_DEVICE_TYPE_DEFAULT);
+//                  var ctx = WebCL.createContextFromType ([WebCL.CL_CONTEXT_PLATFORM, platforms[0]],
+//                                                           WebCL.CL_DEVICE_TYPE_DEFAULT);
+                  var devices = platforms[0].getDeviceIDs (WebCL.CL_DEVICE_TYPE_DEFAULT);
+                  var ctx = WebCL.createContext ([], devices);
                                    
                   // Reserve buffers
                   var bufSize = vectorLength * 4; // size in bytes
