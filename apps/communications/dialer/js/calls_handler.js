@@ -613,9 +613,11 @@ var CallsHandler = (function callsHandler() {
   }
 
   function endConferenceCall() {
-    telephony.conferenceGroup.calls.forEach(function(call) {
+    var callsToEnd = telephony.conferenceGroup.calls;
+    for (var i = (callsToEnd.length - 1); i >= 0; i--) {
+      var call = callsToEnd[i];
       call.hangUp();
-    });
+    }
   }
 
   function end() {
@@ -736,6 +738,18 @@ var CallsHandler = (function callsHandler() {
             telephony.calls[0].secondNumber);
   }
 
+  function mergeActiveCallWith(call) {
+    if (telephony.active == telephony.conferenceGroup) {
+      telephony.conferenceGroup.add(call);
+    } else {
+      telephony.conferenceGroup.add(telephony.active, call);
+    }
+  }
+
+  function mergeConferenceGroupWithActiveCall() {
+    telephony.conferenceGroup.add(telephony.active);
+  }
+
   return {
     setup: setup,
 
@@ -753,6 +767,9 @@ var CallsHandler = (function callsHandler() {
     turnSpeakerOff: turnSpeakerOff,
 
     addRecentEntry: addRecentEntry,
+    checkCalls: onCallsChanged,
+    mergeActiveCallWith: mergeActiveCallWith,
+    mergeConferenceGroupWithActiveCall: mergeConferenceGroupWithActiveCall,
 
     get activeCall() {
       return activeCall();
