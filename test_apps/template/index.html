@@ -235,7 +235,8 @@
         s += "<b>profile:</b> " + plat.getPlatformInfo (WebCL.CL_PLATFORM_PROFILE) + "<br/>";
         s += "<b>extensions:</b> " + plat.getPlatformInfo (WebCL.CL_PLATFORM_EXTENSIONS) + "<br/>";
 
-        var devices = plat.getDeviceIDs (WebCL.CL_DEVICE_TYPE_ALL);
+//        var devices = plat.getDeviceIDs (WebCL.CL_DEVICE_TYPE_ALL);
+        var devices = plat.getDeviceIDs (WebCL.CL_DEVICE_TYPE_DEFAULT);
         s += "<b>Devices:</b> " + devices.length + "<br/>";
         for (var j in devices) {
           var dev = devices[j];
